@@ -1,0 +1,18 @@
+# Build output
+dist
+
+# Dependencies
+node_modules
+
+# Environment variables
+.env
+.env.*
+
+# Local n8n development data
+.n8n
+
+# OS / system files
+.DS_Store
+
+# Logs
+*.log

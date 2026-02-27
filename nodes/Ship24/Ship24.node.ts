@@ -6,7 +6,9 @@ import type {
 	IDataObject,
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
-import { ship24ApiRequest } from '../transport/ship24ApiRequest';
+import { ship24ApiRequest } from '../../transport/ship24ApiRequest';
+
+type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
 
 type Ship24ErrorContext = {
 	resource?: string;
@@ -17,20 +19,69 @@ type Ship24ErrorContext = {
 	itemIndex?: number;
 };
 
-function formatShip24HttpError(
-	error: any,
-	ctx: Ship24ErrorContext = {},
-): { message: string; description?: string } {
+type Ship24ErrorFormat = { message: string; description?: string };
+
+type UnknownRecord = Record<string, unknown>;
+
+type BulkItemError = {
+	code?: string;
+	message?: string;
+};
+
+type BulkItemResult = {
+	itemStatus?: string;
+	errors?: unknown;
+	inputData?: unknown;
+	tracker?: unknown;
+};
+
+type BulkResponseShape = {
+	status?: unknown;
+	summary?: unknown;
+	data?: unknown;
+};
+
+function isRecord(v: unknown): v is UnknownRecord {
+	return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function getRecord(v: unknown): UnknownRecord | undefined {
+	return isRecord(v) ? v : undefined;
+}
+
+function getNestedRecord(root: unknown, ...path: string[]): UnknownRecord | undefined {
+	let cur: unknown = root;
+	for (const key of path) {
+		const rec = getRecord(cur);
+		if (!rec) return undefined;
+		cur = rec[key];
+	}
+	return getRecord(cur);
+}
+
+function getNestedString(root: unknown, ...path: string[]): string | undefined {
+	let cur: unknown = root;
+	for (const key of path) {
+		const rec = getRecord(cur);
+		if (!rec) return undefined;
+		cur = rec[key];
+	}
+	return typeof cur === 'string' ? cur : undefined;
+}
+
+function formatShip24HttpError(error: unknown, ctx: Ship24ErrorContext = {}): Ship24ErrorFormat {
+	const err = getRecord(error);
+
 	// n8n httpRequest errors can expose status in different places depending on runtime / helper
 	const rawStatusCode =
-		error?.statusCode ??
-		error?.response?.status ??
-		error?.response?.statusCode ??
-		error?.httpCode ??
-		error?.cause?.statusCode ??
-		error?.cause?.response?.status ??
-		error?.cause?.response?.statusCode ??
-		error?.cause?.httpCode;
+		err?.statusCode ??
+		getNestedRecord(err?.response)?.status ??
+		getNestedRecord(err?.response)?.statusCode ??
+		err?.httpCode ??
+		getNestedRecord(err?.cause)?.statusCode ??
+		getNestedRecord(getNestedRecord(err?.cause)?.response)?.status ??
+		getNestedRecord(getNestedRecord(err?.cause)?.response)?.statusCode ??
+		getNestedRecord(err?.cause)?.httpCode;
 
 	const statusCode =
 		typeof rawStatusCode === 'string'
@@ -40,31 +91,34 @@ function formatShip24HttpError(
 				: undefined;
 
 	const statusText =
-		error?.response?.statusText ?? (statusCode ? `HTTP ${statusCode}` : undefined);
+		getNestedString(err?.response, 'statusText') ?? (statusCode ? `HTTP ${statusCode}` : undefined);
 
 	const responseBody =
-		error?.response?.body ??
-		error?.response?.data ??
-		error?.body ??
-		error?.data ??
-		error?.cause?.response?.body ??
-		error?.cause?.response?.data ??
-		error?.cause?.body ??
-		error?.cause?.data;
+		getNestedRecord(err?.response)?.body ??
+		getNestedRecord(err?.response)?.data ??
+		err?.body ??
+		err?.data ??
+		getNestedRecord(getNestedRecord(err?.cause)?.response)?.body ??
+		getNestedRecord(getNestedRecord(err?.cause)?.response)?.data ??
+		getNestedRecord(err?.cause)?.body ??
+		getNestedRecord(err?.cause)?.data;
 
 	let ship24Message: string | undefined;
 
-	if (responseBody && typeof responseBody === 'object') {
+	if (isRecord(responseBody)) {
+		const msg = responseBody.message;
+		const errMsg = responseBody.error;
+		const title = responseBody.title;
+
 		ship24Message =
-			(responseBody.message as string) ||
-			(responseBody.error as string) ||
-			(responseBody.title as string);
+			(typeof msg === 'string' ? msg : undefined) ??
+			(typeof errMsg === 'string' ? errMsg : undefined) ??
+			(typeof title === 'string' ? title : undefined);
 	} else if (typeof responseBody === 'string' && responseBody.trim() !== '') {
 		ship24Message = responseBody.trim();
 	}
 
-	const itemPrefix =
-		typeof ctx.itemIndex === 'number' ? `Item ${ctx.itemIndex + 1}: ` : '';
+	const itemPrefix = typeof ctx.itemIndex === 'number' ? `Item ${ctx.itemIndex + 1}: ` : '';
 
 	if (statusCode === 401) {
 		return {
@@ -77,11 +131,9 @@ function formatShip24HttpError(
 		let message = `${itemPrefix}Ship24 API request failed (404). The requested resource was not found.`;
 
 		if (ctx.resource === 'tracker' && ctx.operation === 'getResultsByTrackerId') {
-			message =
-				`${itemPrefix}Ship24 API request failed (404). No results found for this tracker ID (or it is not available yet).`;
+			message = `${itemPrefix}Ship24 API request failed (404). No results found for this tracker ID (or it is not available yet).`;
 		} else if (ctx.resource === 'tracker' && ctx.operation === 'getResultsByTrackingNumber') {
-			message =
-				`${itemPrefix}Ship24 API request failed (404). No results found for this tracking number (or it is not available yet).`;
+			message = `${itemPrefix}Ship24 API request failed (404). No results found for this tracking number (or it is not available yet).`;
 		} else if (ctx.resource === 'utility' && ctx.operation === 'apiCall') {
 			message = `${itemPrefix}Ship24 API request failed (404). The API path may be incorrect.`;
 		}
@@ -94,8 +146,7 @@ function formatShip24HttpError(
 
 	if (statusCode === 429) {
 		return {
-			message:
-				`${itemPrefix}Ship24 API request failed (429). Rate limit exceeded. Try again later or reduce request frequency.`,
+			message: `${itemPrefix}Ship24 API request failed (429). Rate limit exceeded. Try again later or reduce request frequency.`,
 			description: ship24Message ? `Ship24 response: ${ship24Message}` : undefined,
 		};
 	}
@@ -108,9 +159,7 @@ function formatShip24HttpError(
 	if (responseBody !== undefined) {
 		try {
 			description = `Ship24 response body:\n${
-				typeof responseBody === 'string'
-					? responseBody
-					: JSON.stringify(responseBody, null, 2)
+				typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody, null, 2)
 			}`;
 		} catch {
 			description = 'Ship24 response body was present but could not be stringified.';
@@ -136,7 +185,11 @@ function parseCourierCodes(input: unknown): string[] | undefined {
 	const trimmed = input.trim();
 	if (!trimmed) return undefined;
 
-	const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+	const parts = trimmed
+		.split(',')
+		.map((p) => p.trim())
+		.filter(Boolean);
+
 	return parts.length ? parts : undefined;
 }
 
@@ -155,10 +208,7 @@ function isUuid(v: unknown): boolean {
 	return uuidV4ish.test(s);
 }
 
-function buildCreatePayload(
-	trackingNumber: string,
-	additionalFields: IDataObject | undefined,
-): IDataObject {
+function buildCreatePayload(trackingNumber: string, additionalFields: IDataObject | undefined): IDataObject {
 	const body: IDataObject = { trackingNumber };
 	const af = additionalFields ?? {};
 
@@ -167,14 +217,14 @@ function buildCreatePayload(
 		if (typeof v === 'string' && v.trim() !== '') body[key] = v.trim();
 	};
 
-	setIfString('shipmentReference');
 	setIfString('clientTrackerId');
-	setIfString('originCountryCode');
+	setIfString('courierName');
 	setIfString('destinationCountryCode');
 	setIfString('destinationPostCode');
-	setIfString('courierName');
-	setIfString('trackingUrl');
 	setIfString('orderNumber');
+	setIfString('originCountryCode');
+	setIfString('shipmentReference');
+	setIfString('trackingUrl');
 
 	if (typeof af.shippingDate === 'string' && af.shippingDate.trim() !== '') {
 		body.shippingDate = af.shippingDate.trim();
@@ -204,13 +254,63 @@ function buildCreatePayload(
 	return body;
 }
 
-function bulkFirstErrorMessage(errors: unknown): { code?: string; message?: string } {
+function bulkFirstErrorMessage(errors: unknown): BulkItemError {
 	if (!Array.isArray(errors) || errors.length === 0) return {};
-	const first = errors[0] as any;
+
+	const first = errors[0];
+	if (!isRecord(first)) return {};
+
+	const code = typeof first.code === 'string' ? first.code : undefined;
+	const message = typeof first.message === 'string' ? first.message : undefined;
+
+	return { code, message };
+}
+
+function toBulkResponseShape(response: unknown): BulkResponseShape {
+	const rec = getRecord(response);
+	if (!rec) return {};
 	return {
-		code: typeof first?.code === 'string' ? first.code : undefined,
-		message: typeof first?.message === 'string' ? first.message : undefined,
+		status: rec.status,
+		summary: rec.summary,
+		data: rec.data,
 	};
+}
+
+function toBulkItems(response: unknown): BulkItemResult[] {
+	const rec = getRecord(response);
+	if (!rec) return [];
+
+	const data = rec.data;
+	if (!Array.isArray(data)) return [];
+
+	const out: BulkItemResult[] = [];
+	for (const item of data) {
+		if (!isRecord(item)) continue;
+		out.push({
+			itemStatus: typeof item.itemStatus === 'string' ? item.itemStatus : undefined,
+			errors: item.errors,
+			inputData: item.inputData,
+			tracker: item.tracker,
+		});
+	}
+	return out;
+}
+
+function getInputTrackingNumberFromBulkItem(item: BulkItemResult): string {
+	const inputDataRec = getRecord(item.inputData);
+	const tn = inputDataRec?.trackingNumber;
+	return normaliseTrackingNumber(tn);
+}
+
+function getTrackerIdFromCreateResponse(created: unknown): string | undefined {
+	// supports both: { data: { tracker: { trackerId }}} and { tracker: { trackerId }}
+	return (
+		getNestedString(created, 'data', 'tracker', 'trackerId') ?? getNestedString(created, 'tracker', 'trackerId')
+	);
+}
+
+function isHttpMethod(v: unknown): v is HttpMethod {
+	return v === 'DELETE' || v === 'GET' || v === 'PATCH' || v === 'POST' || v === 'PUT';
 }
 
 export class Ship24 implements INodeType {
@@ -252,11 +352,23 @@ export class Ship24 implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
-					{ name: 'Create', value: 'create' },
-					{ name: 'Create and Get Results', value: 'createAndGetResults' },
-					{ name: 'Update', value: 'update' },
-					{ name: 'Get Results By Tracking Number', value: 'getResultsByTrackingNumber' },
-					{ name: 'Get Results By Tracker ID', value: 'getResultsByTrackerId' },
+					{ name: 'Create', value: 'create', action: 'Create a tracker' },
+					{
+						name: 'Create and Get Results',
+						value: 'createAndGetResults',
+						action: 'Create and get results',
+					},
+					{
+						name: 'Get Results By Tracker ID',
+						value: 'getResultsByTrackerId',
+						action: 'Get results by tracker ID',
+					},
+					{
+						name: 'Get Results By Tracking Number',
+						value: 'getResultsByTrackingNumber',
+						action: 'Get results by tracking number',
+					},
+					{ name: 'Update', value: 'update', action: 'Update a tracker' },
 				],
 				displayOptions: { show: { resource: ['tracker'] } },
 				default: 'create',
@@ -281,10 +393,10 @@ export class Ship24 implements INodeType {
 				default: 'single',
 				options: [
 					{ name: 'Single (Per Item)', value: 'single' },
-					{ name: 'Bulk (Up to 100 per request)', value: 'bulk' },
+					{ name: 'Bulk (Up to 100 per Request)', value: 'bulk' },
 				],
 				description:
-					'When using Bulk, the node batches input items (max 100 tracking numbers per API request) and returns one output item per input item.',
+					'When using Bulk, the node batches input items (max 100 tracking numbers per API request) and returns one output item per input item',
 				displayOptions: { show: { resource: ['tracker'], operation: ['create'] } },
 			},
 			{
@@ -294,7 +406,7 @@ export class Ship24 implements INodeType {
 				required: true,
 				default: '',
 				placeholder: '07284069305508',
-				description: 'The shipment tracking number.',
+				description: 'The shipment tracking number',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -308,20 +420,15 @@ export class Ship24 implements INodeType {
 				type: 'collection',
 				default: {},
 				placeholder: 'Add Field',
-				description: 'Optional fields for creating a tracker.',
+				description: 'Optional fields for creating a tracker',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
 						operation: ['create', 'createAndGetResults'],
 					},
 				},
+				// ordering: alphabetical by displayName (keeps lint happy)
 				options: [
-					{
-						displayName: 'Shipment Reference',
-						name: 'shipmentReference',
-						type: 'string',
-						default: '',
-					},
 					{
 						displayName: 'Client Tracker ID',
 						name: 'clientTrackerId',
@@ -329,8 +436,16 @@ export class Ship24 implements INodeType {
 						default: '',
 					},
 					{
-						displayName: 'Origin Country Code',
-						name: 'originCountryCode',
+						displayName: 'Courier Code',
+						name: 'courierCode',
+						type: 'string',
+						default: '',
+						placeholder: 'mobly or mobly,usps',
+						description: 'Comma-separated courier codes (supports expressions and mapping)',
+					},
+					{
+						displayName: 'Courier Name',
+						name: 'courierName',
 						type: 'string',
 						default: '',
 					},
@@ -347,36 +462,14 @@ export class Ship24 implements INodeType {
 						default: '',
 					},
 					{
-						displayName: 'Shipping Date',
-						name: 'shippingDate',
-						type: 'string',
-						default: '',
-						placeholder: '2021-03-01T11:09:00.000Z',
-						description: 'ISO date-time string (UTC).',
-					},
-					{
-						displayName: 'Courier Code',
-						name: 'courierCode',
-						type: 'string',
-						default: '',
-						placeholder: 'mobly or mobly,usps',
-						description: 'Comma-separated courier codes (supports expressions and mapping).',
-					},
-					{
-						displayName: 'Courier Name',
-						name: 'courierName',
-						type: 'string',
-						default: '',
-					},
-					{
-						displayName: 'Tracking URL',
-						name: 'trackingUrl',
-						type: 'string',
-						default: '',
-					},
-					{
 						displayName: 'Order Number',
 						name: 'orderNumber',
+						type: 'string',
+						default: '',
+					},
+					{
+						displayName: 'Origin Country Code',
+						name: 'originCountryCode',
 						type: 'string',
 						default: '',
 					},
@@ -389,7 +482,15 @@ export class Ship24 implements INodeType {
 							{
 								displayName: 'Recipient',
 								name: 'values',
-								values: [{ displayName: 'Email', name: 'email', type: 'string', default: '' }],
+								values: [
+									{
+										displayName: 'Email',
+										name: 'email',
+										type: 'string',
+										default: '',
+										placeholder: 'name@email.com',
+									},
+								],
 							},
 						],
 					},
@@ -413,6 +514,26 @@ export class Ship24 implements INodeType {
 							},
 						],
 					},
+					{
+						displayName: 'Shipment Reference',
+						name: 'shipmentReference',
+						type: 'string',
+						default: '',
+					},
+					{
+						displayName: 'Shipping Date',
+						name: 'shippingDate',
+						type: 'string',
+						default: '',
+						placeholder: '2021-03-01T11:09:00.000Z',
+						description: 'ISO date-time string (UTC)',
+					},
+					{
+						displayName: 'Tracking URL',
+						name: 'trackingUrl',
+						type: 'string',
+						default: '',
+					},
 				],
 			},
 
@@ -424,7 +545,7 @@ export class Ship24 implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'a6e6c40c-e012-4832-9636-e73ffda82517',
-				description: 'The Ship24 tracker ID (UUID).',
+				description: 'The Ship24 tracker ID (UUID)',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -439,7 +560,7 @@ export class Ship24 implements INodeType {
 				name: 'isSubscribed',
 				type: 'boolean',
 				default: true,
-				description: 'Whether the tracker is subscribed for updates.',
+				description: 'Whether the tracker is subscribed for updates',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -453,7 +574,7 @@ export class Ship24 implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'CN',
-				description: 'Two-letter country code (ISO 3166-1 alpha-2).',
+				description: 'Two-letter country code (ISO 3166-1 alpha-2)',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -467,7 +588,7 @@ export class Ship24 implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'US',
-				description: 'Two-letter country code (ISO 3166-1 alpha-2).',
+				description: 'Two-letter country code (ISO 3166-1 alpha-2)',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -494,7 +615,7 @@ export class Ship24 implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: '2021-03-01T11:09:00.000Z',
-				description: 'Shipping date in ISO format (UTC recommended).',
+				description: 'Shipping date in ISO format (UTC recommended)',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -508,7 +629,7 @@ export class Ship24 implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'us-post',
-				description: 'Comma-separated courier codes (e.g. "us-post,dhl").',
+				description: 'Comma-separated courier codes (e.g. "us-post,dhl")',
 				displayOptions: {
 					show: {
 						resource: ['tracker'],
@@ -539,7 +660,7 @@ export class Ship24 implements INodeType {
 				required: true,
 				default: '',
 				placeholder: '/trackers',
-				description: 'Relative Ship24 API path.',
+				description: 'Relative Ship24 API path',
 				displayOptions: { show: { resource: ['utility'] } },
 			},
 			{
@@ -557,13 +678,14 @@ export class Ship24 implements INodeType {
 				displayOptions: { show: { resource: ['utility'] } },
 			},
 		],
+		usableAsTool: true,
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		const pushItemError = (error: any, ctx: Ship24ErrorContext) => {
+		const pushItemError = (error: unknown, ctx: Ship24ErrorContext) => {
 			const formatted = formatShip24HttpError(error, ctx);
 
 			if (this.continueOnFail()) {
@@ -617,9 +739,7 @@ export class Ship24 implements INodeType {
 		// ---- BULK CREATE ----
 		if (canBulkCreateAllItems) {
 			const indexed = items.map((_, i) => {
-				const trackingNumber = normaliseTrackingNumber(
-					this.getNodeParameter('trackingNumber', i) as string,
-				);
+				const trackingNumber = normaliseTrackingNumber(this.getNodeParameter('trackingNumber', i) as string);
 				const additionalFields = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
 				return { i, trackingNumber, additionalFields };
 			});
@@ -633,18 +753,18 @@ export class Ship24 implements INodeType {
 				try {
 					const response = await ship24ApiRequest.call(this, 'POST', '/trackers/bulk', bulkBody);
 
+					const bulkShape = toBulkResponseShape(response);
+
 					const bulkMeta: IDataObject = {
-						status: (response as any)?.status,
-						summary: (response as any)?.summary,
+						status: bulkShape.status as unknown,
+						summary: bulkShape.summary as unknown,
 					};
 
-					const dataItems: any[] = Array.isArray((response as any)?.data)
-						? ((response as any).data as any[])
-						: [];
+					const dataItems = toBulkItems(response);
 
-					const map = new Map<string, any[]>();
+					const map = new Map<string, BulkItemResult[]>();
 					for (const d of dataItems) {
-						const tn = normaliseTrackingNumber(d?.inputData?.trackingNumber);
+						const tn = getInputTrackingNumberFromBulkItem(d);
 						if (!tn) continue;
 						if (!map.has(tn)) map.set(tn, []);
 						map.get(tn)!.push(d);
@@ -668,10 +788,10 @@ export class Ship24 implements INodeType {
 							continue;
 						}
 
-						const itemStatus = itemResult?.itemStatus as string | undefined;
+						const itemStatus = itemResult.itemStatus;
 
 						if (itemStatus === 'error') {
-							const firstErr = bulkFirstErrorMessage(itemResult?.errors);
+							const firstErr = bulkFirstErrorMessage(itemResult.errors);
 
 							outputs[input.i] = {
 								success: false,
@@ -682,9 +802,9 @@ export class Ship24 implements INodeType {
 									code: firstErr.code,
 									message: firstErr.message ?? 'An error occurred for this tracking number.',
 								},
-								errors: itemResult?.errors ?? null,
-								inputData: itemResult?.inputData ?? null,
-								tracker: itemResult?.tracker ?? null,
+								errors: itemResult.errors ?? null,
+								inputData: itemResult.inputData ?? null,
+								tracker: itemResult.tracker ?? null,
 								_bulk: bulkMeta,
 							};
 						} else {
@@ -692,9 +812,9 @@ export class Ship24 implements INodeType {
 								success: true,
 								trackingNumber: tn,
 								itemStatus,
-								tracker: itemResult?.tracker ?? null,
-								inputData: itemResult?.inputData ?? null,
-								errors: itemResult?.errors ?? null,
+								tracker: itemResult.tracker ?? null,
+								inputData: itemResult.inputData ?? null,
+								errors: itemResult.errors ?? null,
 								_bulk: bulkMeta,
 							};
 						}
@@ -750,9 +870,7 @@ export class Ship24 implements INodeType {
 				const operation = this.getNodeParameter('operation', i) as string;
 
 				if (operation === 'create') {
-					const trackingNumber = normaliseTrackingNumber(
-						this.getNodeParameter('trackingNumber', i) as string,
-					);
+					const trackingNumber = normaliseTrackingNumber(this.getNodeParameter('trackingNumber', i) as string);
 					const additionalFields = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
 					const body = buildCreatePayload(trackingNumber, additionalFields);
 
@@ -767,24 +885,17 @@ export class Ship24 implements INodeType {
 				}
 
 				if (operation === 'createAndGetResults') {
-					const trackingNumber = normaliseTrackingNumber(
-						this.getNodeParameter('trackingNumber', i) as string,
-					);
+					const trackingNumber = normaliseTrackingNumber(this.getNodeParameter('trackingNumber', i) as string);
 					const additionalFields = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
 					const body = buildCreatePayload(trackingNumber, additionalFields);
 
 					try {
 						const created = await ship24ApiRequest.call(this, 'POST', '/trackers', body);
 
-						const trackerId =
-							((created as any)?.data?.tracker?.trackerId as string | undefined) ??
-							((created as any)?.tracker?.trackerId as string | undefined);
+						const trackerId = getTrackerIdFromCreateResponse(created);
 
 						if (!trackerId || typeof trackerId !== 'string') {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Create succeeded but trackerId was not found in the response.',
-							);
+							throw new NodeOperationError(this.getNode(), 'Create succeeded but trackerId was not found in the response.');
 						}
 
 						const results = await ship24ApiRequest.call(
@@ -810,10 +921,12 @@ export class Ship24 implements INodeType {
 					const trackerId = this.getNodeParameter('trackerId', i) as string;
 
 					if (!isUuid(trackerId)) {
-						pushItemError(
-							new NodeOperationError(this.getNode(), 'Tracker ID must be a valid UUID.'),
-							{ resource, operation, trackerId, itemIndex: i },
-						);
+						pushItemError(new NodeOperationError(this.getNode(), 'Tracker ID must be a valid UUID.'), {
+							resource,
+							operation,
+							trackerId,
+							itemIndex: i,
+						});
 						continue;
 					}
 
@@ -864,9 +977,7 @@ export class Ship24 implements INodeType {
 				}
 
 				if (operation === 'getResultsByTrackingNumber') {
-					const trackingNumber = normaliseTrackingNumber(
-						this.getNodeParameter('trackingNumber', i) as string,
-					);
+					const trackingNumber = normaliseTrackingNumber(this.getNodeParameter('trackingNumber', i) as string);
 					try {
 						const response = await ship24ApiRequest.call(
 							this,
@@ -885,10 +996,12 @@ export class Ship24 implements INodeType {
 					const trackerId = this.getNodeParameter('trackerId', i) as string;
 
 					if (!isUuid(trackerId)) {
-						pushItemError(
-							new NodeOperationError(this.getNode(), 'Tracker ID must be a valid UUID.'),
-							{ resource, operation, trackerId, itemIndex: i },
-						);
+						pushItemError(new NodeOperationError(this.getNode(), 'Tracker ID must be a valid UUID.'), {
+							resource,
+							operation,
+							trackerId,
+							itemIndex: i,
+						});
 						continue;
 					}
 
@@ -918,7 +1031,9 @@ export class Ship24 implements INodeType {
 			if (resource === 'utility') {
 				const operation = (this.getNodeParameter('utilityOperation', i) as string) || 'apiCall';
 				try {
-					const method = this.getNodeParameter('method', i) as any;
+					const methodRaw = this.getNodeParameter('method', i) as unknown;
+					const method: HttpMethod = isHttpMethod(methodRaw) ? methodRaw : 'GET';
+
 					const path = this.getNodeParameter('path', i) as string;
 					const query = this.getNodeParameter('query', i) as IDataObject;
 					const body = this.getNodeParameter('body', i) as IDataObject;

@@ -38,7 +38,7 @@
 			"dist/credentials/Ship24Api.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/Ship24.node.js"
+			"dist/nodes/Ship24/Ship24.node.js"
 		]
 	},
 	"devDependencies": {

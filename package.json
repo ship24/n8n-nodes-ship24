@@ -1,55 +1,55 @@
 {
-	"name": "n8n-nodes-ship24",
-	"version": "1.0.3",
-	"description": "Ship24 integration for n8n (shipment tracking API).",
-	"license": "MIT",
-	"homepage": "https://github.com/ship24-official/n8n-nodes-ship24#readme",
-	"keywords": [
-		"n8n-community-node-package",
-		"n8n",
-		"ship24",
-		"tracking",
-		"shipment-tracking",
-		"logistics"
-	],
-	"author": {
-		"name": "Ship24",
-		"email": "contact@ship24.com"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ship24-official/n8n-nodes-ship24.git"
-	},
-	"scripts": {
-		"build": "n8n-node build",
-		"build:watch": "tsc --watch",
-		"dev": "n8n-node dev",
-		"lint": "n8n-node lint",
-		"lint:fix": "n8n-node lint --fix",
-		"release": "n8n-node release",
-		"prepublishOnly": "n8n-node prerelease"
-	},
-	"files": [
-		"dist"
-	],
-	"n8n": {
-		"n8nNodesApiVersion": 1,
-		"credentials": [
-			"dist/credentials/Ship24Api.credentials.js"
-		],
-		"nodes": [
-			"dist/nodes/Ship24/Ship24.node.js"
-		]
-	},
-	"devDependencies": {
-		"@n8n/node-cli": "*",
-		"@types/node": "^25.3.0",
-		"eslint": "9.32.0",
-		"prettier": "3.6.2",
-		"release-it": "^19.0.4",
-		"typescript": "5.9.2"
-	},
-	"peerDependencies": {
-		"n8n-workflow": "*"
-	}
+  "name": "n8n-nodes-ship24",
+  "version": "1.0.3",
+  "description": "Ship24 integration for n8n (shipment tracking API).",
+  "license": "MIT",
+  "homepage": "https://github.com/ship24-official/n8n-nodes-ship24#readme",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "ship24",
+    "tracking",
+    "shipment-tracking",
+    "logistics"
+  ],
+  "author": {
+    "name": "Ship24",
+    "email": "contact@ship24.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ship24-official/n8n-nodes-ship24.git"
+  },
+  "scripts": {
+    "build": "n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/Ship24Api.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Ship24/Ship24.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "*",
+    "@types/node": "^25.3.0",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "release-it": "^19.0.4",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
 }

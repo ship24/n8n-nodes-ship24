@@ -69,6 +69,17 @@ function getNestedString(root: unknown, ...path: string[]): string | undefined {
 	return typeof cur === 'string' ? cur : undefined;
 }
 
+function toSafeJsonValue(v: unknown): string | number | boolean | null {
+	if (v === null) return null;
+	if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v;
+
+	try {
+		return JSON.stringify(v);
+	} catch {
+		return String(v);
+	}
+}
+
 function formatShip24HttpError(error: unknown, ctx: Ship24ErrorContext = {}): Ship24ErrorFormat {
 	const err = getRecord(error);
 
@@ -756,8 +767,8 @@ export class Ship24 implements INodeType {
 					const bulkShape = toBulkResponseShape(response);
 
 					const bulkMeta: IDataObject = {
-						status: bulkShape.status as unknown,
-						summary: bulkShape.summary as unknown,
+						status: toSafeJsonValue(bulkShape.status),
+						summary: toSafeJsonValue(bulkShape.summary),
 					};
 
 					const dataItems = toBulkItems(response);
@@ -890,26 +901,29 @@ export class Ship24 implements INodeType {
 					const body = buildCreatePayload(trackingNumber, additionalFields);
 
 					try {
-						const created = await ship24ApiRequest.call(this, 'POST', '/trackers', body);
+						const created = (await ship24ApiRequest.call(this, 'POST', '/trackers', body)) as IDataObject;
 
 						const trackerId = getTrackerIdFromCreateResponse(created);
 
 						if (!trackerId || typeof trackerId !== 'string') {
-							throw new NodeOperationError(this.getNode(), 'Create succeeded but trackerId was not found in the response.');
+							throw new NodeOperationError(
+								this.getNode(),
+								'Create succeeded but trackerId was not found in the response.',
+							);
 						}
 
-						const results = await ship24ApiRequest.call(
+						const results = (await ship24ApiRequest.call(
 							this,
 							'GET',
 							`/trackers/${encodeURIComponent(trackerId)}/results`,
-						);
+						)) as IDataObject;
 
-						returnData.push({
-							json: {
-								created,
-								results,
-							} as IDataObject,
-						});
+						const out: IDataObject = {
+							created: created as IDataObject,
+							results: results as IDataObject,
+						};
+
+						returnData.push({ json: out });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackingNumber, itemIndex: i });

@@ -1,9 +1,4 @@
-import type {
-	ICredentialType,
-	INodeProperties,
-	Icon,
-	IHttpRequestMethods,
-} from 'n8n-workflow';
+import type { ICredentialType, INodeProperties, Icon } from 'n8n-workflow';
 
 export class Ship24Api implements ICredentialType {
 	name = 'ship24Api';
@@ -15,18 +10,9 @@ export class Ship24Api implements ICredentialType {
 		type: 'generic',
 		properties: {
 			headers: {
-				// n8n expression: prepend "Bearer " to the stored apiKey
 				Authorization: '={{"Bearer " + $credentials.apiKey}}',
 				Accept: 'application/json',
 			},
-		},
-	} as const;
-
-	// Sets defaults for requests executed with this credential (including the credential test)
-	requestDefaults = {
-		baseURL: 'https://api.ship24.com/public/v1',
-		headers: {
-			Accept: 'application/json',
 		},
 	} as const;
 
@@ -34,9 +20,9 @@ export class Ship24Api implements ICredentialType {
 		request: {
 			baseURL: 'https://api.ship24.com/public/v1',
 			url: '/couriers',
-			method: 'GET' as IHttpRequestMethods,
+			method: 'GET',
 		},
-	};
+	} as const;
 
 	properties: INodeProperties[] = [
 		{

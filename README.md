@@ -95,14 +95,34 @@ Supports:
 
 ### Bulk Mode Behaviour
 
-If more than 100 items are provided, the node automatically splits them
-into multiple API calls.
+Bulk mode still follows standard n8n multi-item logic.
 
-  Input Items     API Calls
-  ------------- -----------
-  80                      1
-  150                     2
-  250                     3
+Each incoming item must contain one tracking number per item.
+The Ship24 node automatically batches those items into API requests of
+up to 100 tracking numbers per call.
+
+Expected Input Format
+
+Your previous node (Set, Code, HTTP Request, Google Sheets, etc.) should
+output items like:
+
+-   Item 1 → { "trackingNumber": "00340435063770617839" }
+-   Item 2 → { "trackingNumber": "00340434788009688510" }
+-   Item 3 → { "trackingNumber": "00340434788009688268" }
+
+If your upstream system provides an array of tracking numbers, use an
+Item Lists, Split Out Items, or Code node to convert the array into
+multiple items before passing them to the Ship24 node.
+
+Automatic Chunking
+
+If more than 100 items are provided, the node automatically splits them into multiple API calls.
+
+| Input items | API calls |
+|------------|-----------|
+| 80         | 1         |
+| 150        | 2         |
+| 250        | 3         |
 
 Each input item returns exactly one output item.
 

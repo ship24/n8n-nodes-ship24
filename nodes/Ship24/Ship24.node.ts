@@ -356,7 +356,6 @@ export class Ship24 implements INodeType {
 				default: 'tracker',
 			},
 
-			// ---- TRACKER OPS ----
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -364,16 +363,8 @@ export class Ship24 implements INodeType {
 				noDataExpression: true,
 				options: [
 					{ name: 'Create', value: 'create', action: 'Create a tracker' },
-					{
-						name: 'Create and Get Results',
-						value: 'createAndGetResults',
-						action: 'Create and get results',
-					},
-					{
-						name: 'Get Results By Tracker ID',
-						value: 'getResultsByTrackerId',
-						action: 'Get results by tracker ID',
-					},
+					{ name: 'Create and Get Results', value: 'createAndGetResults', action: 'Create and get results' },
+					{ name: 'Get Results By Tracker ID', value: 'getResultsByTrackerId', action: 'Get results by tracker ID' },
 					{
 						name: 'Get Results By Tracking Number',
 						value: 'getResultsByTrackingNumber',
@@ -385,7 +376,6 @@ export class Ship24 implements INodeType {
 				default: 'create',
 			},
 
-			// ---- UTILITY OPS ----
 			{
 				displayName: 'Operation',
 				name: 'utilityOperation',
@@ -396,7 +386,6 @@ export class Ship24 implements INodeType {
 				default: 'apiCall',
 			},
 
-			// ---- CREATE CONFIG ----
 			{
 				displayName: 'Create Method',
 				name: 'createMethod',
@@ -438,7 +427,6 @@ export class Ship24 implements INodeType {
 						operation: ['create', 'createAndGetResults'],
 					},
 				},
-				// ordering: alphabetical by displayName (keeps lint happy)
 				options: [
 					{
 						displayName: 'Client Tracker ID',
@@ -548,7 +536,6 @@ export class Ship24 implements INodeType {
 				],
 			},
 
-			// ---- TRACKER ID (RESULTS / UPDATE) ----
 			{
 				displayName: 'Tracker ID',
 				name: 'trackerId',
@@ -565,7 +552,6 @@ export class Ship24 implements INodeType {
 				},
 			},
 
-			// ---- UPDATE ----
 			{
 				displayName: 'Is Subscribed',
 				name: 'isSubscribed',
@@ -649,7 +635,6 @@ export class Ship24 implements INodeType {
 				},
 			},
 
-			// ---- UTILITY FIELDS ----
 			{
 				displayName: 'Method',
 				name: 'method',
@@ -716,6 +701,7 @@ export class Ship24 implements INodeType {
 							itemIndex: ctx.itemIndex,
 						},
 					},
+					pairedItem: { item: ctx.itemIndex ?? 0 },
 				});
 				return;
 			}
@@ -727,7 +713,6 @@ export class Ship24 implements INodeType {
 			);
 		};
 
-		// Bulk is only valid when ALL items are tracker+create+bulk
 		const canBulkCreateAllItems = (() => {
 			if (items.length === 0) return false;
 			try {
@@ -747,7 +732,6 @@ export class Ship24 implements INodeType {
 			}
 		})();
 
-		// ---- BULK CREATE ----
 		if (canBulkCreateAllItems) {
 			const indexed = items.map((_, i) => {
 				const trackingNumber = normaliseTrackingNumber(this.getNodeParameter('trackingNumber', i) as string);
@@ -866,17 +850,16 @@ export class Ship24 implements INodeType {
 							success: false,
 							error: { type: 'unknown', message: 'No output generated for this item.' },
 						},
+					pairedItem: { item: i },
 				});
 			}
 
 			return [returnData];
 		}
 
-		// ---- PER-ITEM MULTI-ITEM SUPPORT ----
 		for (let i = 0; i < items.length; i++) {
 			const resource = this.getNodeParameter('resource', i) as string;
 
-			// ---- TRACKER ----
 			if (resource === 'tracker') {
 				const operation = this.getNodeParameter('operation', i) as string;
 
@@ -887,7 +870,7 @@ export class Ship24 implements INodeType {
 
 					try {
 						const response = await ship24ApiRequest.call(this, 'POST', '/trackers', body);
-						returnData.push({ json: response as IDataObject });
+						returnData.push({ json: response as IDataObject, pairedItem: { item: i } });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackingNumber, itemIndex: i });
@@ -906,10 +889,7 @@ export class Ship24 implements INodeType {
 						const trackerId = getTrackerIdFromCreateResponse(created);
 
 						if (!trackerId || typeof trackerId !== 'string') {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Create succeeded but trackerId was not found in the response.',
-							);
+							throw new NodeOperationError(this.getNode(), 'Create succeeded but trackerId was not found in the response.');
 						}
 
 						const results = (await ship24ApiRequest.call(
@@ -923,7 +903,7 @@ export class Ship24 implements INodeType {
 							results: results as IDataObject,
 						};
 
-						returnData.push({ json: out });
+						returnData.push({ json: out, pairedItem: { item: i } });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackingNumber, itemIndex: i });
@@ -982,7 +962,7 @@ export class Ship24 implements INodeType {
 							body,
 						);
 
-						returnData.push({ json: response as IDataObject });
+						returnData.push({ json: response as IDataObject, pairedItem: { item: i } });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackerId, itemIndex: i });
@@ -998,7 +978,7 @@ export class Ship24 implements INodeType {
 							'GET',
 							`/trackers/search/${encodeURIComponent(trackingNumber)}/results`,
 						);
-						returnData.push({ json: response as IDataObject });
+						returnData.push({ json: response as IDataObject, pairedItem: { item: i } });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackingNumber, itemIndex: i });
@@ -1025,7 +1005,7 @@ export class Ship24 implements INodeType {
 							'GET',
 							`/trackers/${encodeURIComponent(trackerId)}/results`,
 						);
-						returnData.push({ json: response as IDataObject });
+						returnData.push({ json: response as IDataObject, pairedItem: { item: i } });
 						continue;
 					} catch (error) {
 						pushItemError(error, { resource, operation, trackerId, itemIndex: i });
@@ -1041,7 +1021,6 @@ export class Ship24 implements INodeType {
 				continue;
 			}
 
-			// ---- UTILITY ----
 			if (resource === 'utility') {
 				const operation = (this.getNodeParameter('utilityOperation', i) as string) || 'apiCall';
 				try {
@@ -1053,7 +1032,7 @@ export class Ship24 implements INodeType {
 					const body = this.getNodeParameter('body', i) as IDataObject;
 
 					const response = await ship24ApiRequest.call(this, method, path, body, query);
-					returnData.push({ json: response as IDataObject });
+					returnData.push({ json: response as IDataObject, pairedItem: { item: i } });
 					continue;
 				} catch (error) {
 					pushItemError(error, {

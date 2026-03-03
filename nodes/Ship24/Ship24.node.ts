@@ -405,7 +405,7 @@ export class Ship24 implements INodeType {
 				type: 'string',
 				required: true,
 				default: '',
-				placeholder: '07284069305508',
+				placeholder: '1234567890',
 				description: 'The shipment tracking number',
 				displayOptions: {
 					show: {
@@ -439,7 +439,7 @@ export class Ship24 implements INodeType {
 						name: 'courierCode',
 						type: 'string',
 						default: '',
-						placeholder: 'mobly or mobly,usps',
+						placeholder: 'dhl or dhl,usps',
 						description: 'Comma-separated courier codes (supports expressions and mapping)',
 					},
 					{
@@ -524,7 +524,7 @@ export class Ship24 implements INodeType {
 						name: 'shippingDate',
 						type: 'string',
 						default: '',
-						placeholder: '2021-03-01T11:09:00.000Z',
+						placeholder: '2026-01-01T11:09:00.000Z',
 						description: 'ISO date-time string (UTC)',
 					},
 					{
@@ -611,7 +611,7 @@ export class Ship24 implements INodeType {
 				name: 'shippingDate',
 				type: 'string',
 				default: '',
-				placeholder: '2021-03-01T11:09:00.000Z',
+				placeholder: '2026-01-01T11:09:00.000Z',
 				description: 'Shipping date in ISO format (UTC recommended)',
 				displayOptions: {
 					show: {

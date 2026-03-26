@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-ship24",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Ship24 integration for n8n (shipment tracking API).",
   "license": "MIT",
   "homepage": "https://github.com/ship24-official/n8n-nodes-ship24#readme",

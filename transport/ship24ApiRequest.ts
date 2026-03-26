@@ -14,8 +14,6 @@ export async function ship24ApiRequest(
 	body?: IDataObject | IDataObject[],
 	qs?: IDataObject,
 ): Promise<IDataObject> {
-	const credentials = await this.getCredentials('ship24Api');
-
 	const url =
 		path.startsWith('http')
 			? path
@@ -25,7 +23,6 @@ export async function ship24ApiRequest(
 		method,
 		url,
 		headers: {
-			Authorization: `Bearer ${credentials.apiKey as string}`,
 			Accept: 'application/json',
 		},
 		json: true,
@@ -35,17 +32,19 @@ export async function ship24ApiRequest(
 		options.qs = qs;
 	}
 
-	// Only attach body when it makes sense (avoid GET/DELETE bodies)
 	const methodUpper = String(method).toUpperCase();
 	if (body !== undefined && !['GET', 'DELETE'].includes(methodUpper)) {
 		options.body = body;
 
-		// Safe to set Content-Type when we actually send a body
 		options.headers = {
 			...(options.headers ?? {}),
 			'Content-Type': 'application/json',
 		};
 	}
 
-	return (await this.helpers.httpRequest(options)) as IDataObject;
+	return (await this.helpers.httpRequestWithAuthentication.call(
+		this,
+		'ship24Api',
+		options,
+	)) as IDataObject;
 }

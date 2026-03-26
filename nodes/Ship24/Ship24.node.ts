@@ -5,7 +5,12 @@ import type {
 	INodeTypeDescription,
 	IDataObject,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import {
+	NodeApiError,
+	NodeConnectionTypes,
+	NodeOperationError,
+	type JsonObject,
+} from 'n8n-workflow';
 import { ship24ApiRequest } from '../../transport/ship24ApiRequest';
 
 type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
@@ -333,6 +338,7 @@ export class Ship24 implements INodeType {
 		version: 1,
 		description: 'Automate shipment tracking using the Ship24 API',
 		defaults: { name: 'Ship24' },
+		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'ship24Api', required: true }],
@@ -706,11 +712,10 @@ export class Ship24 implements INodeType {
 				return;
 			}
 
-			throw new NodeOperationError(
-				this.getNode(),
-				formatted.message,
-				formatted.description ? { description: formatted.description } : undefined,
-			);
+			throw new NodeApiError(this.getNode(), error as JsonObject, {
+				message: formatted.message,
+				description: formatted.description,
+			});
 		};
 
 		const canBulkCreateAllItems = (() => {
@@ -821,11 +826,10 @@ export class Ship24 implements INodeType {
 					});
 
 					if (!this.continueOnFail()) {
-						throw new NodeOperationError(
-							this.getNode(),
-							formatted.message,
-							formatted.description ? { description: formatted.description } : undefined,
-						);
+						throw new NodeApiError(this.getNode(), error as JsonObject, {
+							message: formatted.message,
+							description: formatted.description,
+						});
 					}
 
 					for (const x of chunk) {

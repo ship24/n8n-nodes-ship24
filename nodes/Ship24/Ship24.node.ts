@@ -338,7 +338,7 @@ export class Ship24 implements INodeType {
 		version: 1,
 		description: 'Automate shipment tracking using the Ship24 API',
 		defaults: { name: 'Ship24' },
-		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
+		subtitle: '={{$parameter["resource"] === "utility" ? $parameter["utilityOperation"] + ": " + $parameter["resource"] : $parameter["operation"] + ": " + $parameter["resource"]}}',
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'ship24Api', required: true }],

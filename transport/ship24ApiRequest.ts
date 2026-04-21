@@ -24,6 +24,7 @@ export async function ship24ApiRequest(
 		url,
 		headers: {
 			Accept: 'application/json',
+			'X-Source': 'n8n',
 		},
 		json: true,
 	};

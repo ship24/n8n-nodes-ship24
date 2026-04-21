@@ -31,6 +31,7 @@ export class Ship24Api implements ICredentialType {
 			headers: {
 				Authorization: '={{"Bearer " + $credentials.apiKey}}',
 				Accept: 'application/json',
+				'X-Source': 'n8n',
 			},
 		},
 	};

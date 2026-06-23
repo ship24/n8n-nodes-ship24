@@ -2,9 +2,10 @@
 
 Automate global shipment tracking inside n8n using the Ship24 API.
 
-The Ship24 node enables production-grade shipment tracking workflows
-including bulk tracker creation, structured result retrieval, multi-item
-processing, and robust error handling.
+This package includes two nodes:
+
+-   **Ship24** — action node for creating, updating, and querying trackers via the Ship24 API
+-   **Ship24 Trigger** — trigger node that starts a workflow when Ship24 sends a tracking event webhook
 
 ------------------------------------------------------------------------
 
@@ -13,17 +14,20 @@ processing, and robust error handling.
 Ship24 is a global shipment tracking API supporting 1500+ couriers and
 marketplaces worldwide.
 
-This node allows n8n users to:
+This package allows n8n users to:
 
 -   Create shipment trackers
 -   Retrieve tracking results
 -   Update tracker subscription status
 -   Process bulk shipments
+-   Receive real-time tracking events via webhooks
 -   Automate delivery workflows at scale
 
 ------------------------------------------------------------------------
 
 ## Features
+
+### Ship24 (action node)
 
 -   Single tracker creation
 -   Bulk tracker creation (automatic chunking up to 100 per request)
@@ -35,6 +39,13 @@ This node allows n8n users to:
 -   Structured per-item error handling
 -   `continueOnFail` support
 -   Utility mode for advanced API access
+
+### Ship24 Trigger (trigger node)
+
+-   Receives real-time tracking events pushed by Ship24
+-   Starts a workflow automatically on each incoming webhook
+-   Passes the raw Ship24 payload through for flexible mapping
+-   Supports optional webhook secret validation via the `Authorization` header
 
 ------------------------------------------------------------------------
 
@@ -73,7 +84,7 @@ This node requires a Ship24 API key.
 
 ![Node Overview](docs/images/node-overview.png)
 
-The node provides two resources:
+The **Ship24** action node provides two resources:
 
 -   **Tracker**
 -   **Utility**
@@ -162,6 +173,51 @@ Retrieve tracking data:
 -   By tracker ID
 
 ![Get Results](docs/images/get-results-by-trackerId.png)
+
+------------------------------------------------------------------------
+
+# Ship24 Trigger
+
+The Ship24 Trigger node starts a workflow whenever Ship24 sends a tracking
+event to your webhook URL.
+
+## Setup
+
+1.  Add the **Ship24 Trigger** node to a new workflow.
+2.  Two webhook URLs are shown at the top of the node panel:
+    -   **Test URL** — active while you click **Execute step** in the editor. Use this with the Ship24 dashboard test button to verify your workflow before going live.
+    -   **Production URL** — active when the workflow is **activated** (toggle top-right). This is the URL to save in your Ship24 dashboard.
+3.  Go to [Ship24 Dashboard → Integrations → Webhook](https://dashboard.ship24.com/integrations/webhook), paste the appropriate URL, and test or save it.
+
+## Webhook Payload
+
+Ship24 sends tracking events as a JSON array. Each element contains:
+
+``` json
+{
+  "metadata": { "generatedAt": "...", "messageId": "...", "topic": "..." },
+  "tracker": { "trackerId": "...", "trackingNumber": "...", "isSubscribed": true, ... },
+  "shipment": { "shipmentId": "...", "statusCode": "...", "statusMilestone": "...", ... },
+  "events": [ { "eventId": "...", "status": "...", "occurrenceDatetime": "...", ... } ],
+  "statistics": { "timestamps": { ... } }
+}
+```
+
+The node passes the raw payload through. Use n8n's **Split Out** node on the
+`trackings` field if you want to process each tracking entry as a separate item.
+
+## Webhook Secret (optional)
+
+Ship24 allocates a random webhook secret to your account, visible in your
+dashboard. It is sent with every request as:
+
+```
+Authorization: Bearer your_webhook_secret
+```
+
+To validate it, add an **IF** node after the trigger and compare
+`{{ $request.headers.authorization }}` to your expected value. This ensures
+requests genuinely originate from Ship24.
 
 ------------------------------------------------------------------------
 

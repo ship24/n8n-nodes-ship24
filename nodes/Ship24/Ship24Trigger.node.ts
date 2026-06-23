@@ -15,6 +15,7 @@ export class Ship24Trigger implements INodeType {
 		version: 1,
 		description: 'Starts the workflow when Ship24 sends a tracking event to a webhook',
 		defaults: { name: 'Ship24 Trigger' },
+		subtitle: 'on tracking event',
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
 		usableAsTool: true,

@@ -181,6 +181,8 @@ Retrieve tracking data:
 The Ship24 Trigger node starts a workflow whenever Ship24 sends a tracking
 event to your webhook URL.
 
+![Ship24 Trigger](docs/images/webhook.png)
+
 ## Setup
 
 1.  Add the **Ship24 Trigger** node to a new workflow.

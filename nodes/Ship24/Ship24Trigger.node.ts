@@ -24,7 +24,7 @@ export class Ship24Trigger implements INodeType {
 				name: 'default',
 				httpMethod: 'POST',
 				responseMode: 'onReceived',
-				path: 'ship24',
+				path: '={{$parameter["path"]}}',
 			},
 		],
 		properties: [
@@ -34,6 +34,15 @@ export class Ship24Trigger implements INodeType {
 				name: 'ship24WebhookNotice',
 				type: 'notice',
 				default: '',
+			},
+			{
+				displayName: 'Webhook Path',
+				name: 'path',
+				type: 'string',
+				default: '',
+				placeholder: 'e.g. shop-tracking',
+				description:
+					'URL path for this webhook endpoint. Must be unique per workflow — two active workflows sharing the same path will collide.',
 			},
 			{
 				displayName:

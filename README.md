@@ -44,6 +44,7 @@ This package allows n8n users to:
 
 -   Receives real-time tracking events pushed by Ship24
 -   Starts a workflow automatically on each incoming webhook
+-   Configurable webhook path — unique per workflow, pre-filled with a UUID to avoid multi-instance collisions
 -   Passes the raw Ship24 payload through for flexible mapping
 -   Supports optional webhook secret validation via the `Authorization` header
 
@@ -186,27 +187,32 @@ event to your webhook URL.
 ## Setup
 
 1.  Add the **Ship24 Trigger** node to a new workflow.
-2.  Two webhook URLs are shown at the top of the node panel:
+2.  The **Webhook Path** field is pre-filled with a unique UUID. You can leave it as-is or replace it with a memorable slug (e.g. `shop-tracking`). Each active workflow must use a different path — two workflows sharing the same path will collide and only one will receive events.
+3.  Two webhook URLs are shown at the top of the node panel:
     -   **Test URL** — active while you click **Execute step** in the editor. Use this with the Ship24 dashboard test button to verify your workflow before going live.
     -   **Production URL** — active when the workflow is **activated** (toggle top-right). This is the URL to save in your Ship24 dashboard.
-3.  Go to [Ship24 Dashboard → Integrations → Webhook](https://dashboard.ship24.com/integrations/webhook), paste the appropriate URL, and test or save it.
+4.  Go to [Ship24 Dashboard → Integrations → Webhook](https://dashboard.ship24.com/integrations/webhook), paste the appropriate URL, and test or save it.
 
 ## Webhook Payload
 
-Ship24 sends tracking events as a JSON array. Each element contains:
+Ship24 sends tracking events as a JSON object whose `trackings` field is an array. Each element in that array represents one tracking update:
 
 ``` json
 {
-  "metadata": { "generatedAt": "...", "messageId": "...", "topic": "..." },
-  "tracker": { "trackerId": "...", "trackingNumber": "...", "isSubscribed": true, ... },
-  "shipment": { "shipmentId": "...", "statusCode": "...", "statusMilestone": "...", ... },
-  "events": [ { "eventId": "...", "status": "...", "occurrenceDatetime": "...", ... } ],
-  "statistics": { "timestamps": { ... } }
+  "trackings": [
+    {
+      "metadata": { "generatedAt": "...", "messageId": "...", "topic": "..." },
+      "tracker": { "trackerId": "...", "trackingNumber": "...", "isSubscribed": true, ... },
+      "shipment": { "shipmentId": "...", "statusCode": "...", "statusMilestone": "...", ... },
+      "events": [ { "eventId": "...", "status": "...", "occurrenceDatetime": "...", ... } ],
+      "statistics": { "timestamps": { ... } }
+    }
+  ]
 }
 ```
 
 The node passes the raw payload through. Use n8n's **Split Out** node on the
-`trackings` field if you want to process each tracking entry as a separate item.
+`trackings` field to process each tracking entry as a separate item.
 
 ## Webhook Secret (optional)
 

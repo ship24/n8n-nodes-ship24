@@ -44,7 +44,7 @@ This package allows n8n users to:
 
 -   Receives real-time tracking events pushed by Ship24
 -   Starts a workflow automatically on each incoming webhook
--   Configurable webhook path — unique per workflow, pre-filled with a UUID to avoid multi-instance collisions
+-   Configurable webhook path — required field, ensuring each workflow uses a distinct endpoint
 -   Passes the raw Ship24 payload through for flexible mapping
 -   Supports optional webhook secret validation via the `Authorization` header
 
@@ -187,7 +187,7 @@ event to your webhook URL.
 ## Setup
 
 1.  Add the **Ship24 Trigger** node to a new workflow.
-2.  The **Webhook Path** field is pre-filled with a unique UUID. You can leave it as-is or replace it with a memorable slug (e.g. `shop-tracking`). Each active workflow must use a different path — two workflows sharing the same path will collide and only one will receive events.
+2.  Enter a unique slug in the **Webhook Path** field (e.g. `shop-tracking`). This field is required — each active workflow must use a different path, or only one will receive events.
 3.  Two webhook URLs are shown at the top of the node panel:
     -   **Test URL** — active while you click **Execute step** in the editor. Use this with the Ship24 dashboard test button to verify your workflow before going live.
     -   **Production URL** — active when the workflow is **activated** (toggle top-right). This is the URL to save in your Ship24 dashboard.

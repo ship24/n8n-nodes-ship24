@@ -30,7 +30,7 @@ export class Ship24Trigger implements INodeType {
 		properties: [
 			{
 				displayName:
-					'Two URLs are shown above. Use the <strong>Test URL</strong> while building your workflow — click <em>Execute step</em> to start the node listening, then use the Ship24 dashboard test button to send a sample payload. Once your workflow is ready, <strong>activate</strong> it and copy the <strong>Production URL</strong> to save in <a href="https://dashboard.ship24.com/integrations/webhook" target="_blank">Ship24 Dashboard → Integrations → Webhook</a>. Ship24 will then send live tracking events to this workflow.',
+					'<ul><li>Use the <strong>Test URL</strong> while building — click <em>Execute step</em> to start listening, then use the Ship24 dashboard test button.</li><li>When ready, <strong>activate</strong> the workflow and paste the <strong>Production URL</strong> into <a href="https://dashboard.ship24.com/integrations/webhook" target="_blank">Ship24 Dashboard → Integrations → Webhook</a>.</li><li><strong>Webhook Secret (optional):</strong> Ship24 sends your account secret as an <code>Authorization: Bearer</code> header. Validate it with an <em>IF</em> node comparing <code>{{ $request.headers.authorization }}</code> to your expected value.</li></ul>',
 				name: 'ship24WebhookNotice',
 				type: 'notice',
 				default: '',
@@ -39,17 +39,10 @@ export class Ship24Trigger implements INodeType {
 				displayName: 'Webhook Path',
 				name: 'path',
 				type: 'string',
+				required: true,
 				default: '',
 				placeholder: 'e.g. shop-tracking',
-				description:
-					'URL path for this webhook endpoint. Must be unique per workflow — two active workflows sharing the same path will collide.',
-			},
-			{
-				displayName:
-					'<strong>Webhook Secret (optional):</strong> Ship24 allocates a random secret to your account, visible in your dashboard. It is sent with every request as an <code>Authorization: Bearer your_webhook_secret</code> header. You can validate it in your workflow using an <em>IF</em> node that compares <code>{{ $request.headers.authorization }}</code> to your expected value, to ensure requests genuinely come from Ship24.',
-				name: 'ship24WebhookSecretNotice',
-				type: 'notice',
-				default: '',
+				description: 'Unique slug for this webhook endpoint. Each active workflow must use a different path.',
 			},
 		],
 	};
